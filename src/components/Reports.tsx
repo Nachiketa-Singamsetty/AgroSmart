@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { 
   Download, 
@@ -55,6 +56,7 @@ const weeklyReports = generateReportData(30).filter((_, i) => i % 7 === 0);
 export const Reports = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [reportType, setReportType] = useState("daily");
+  const { toast } = useToast();
 
   const getCurrentData = () => {
     return reportType === "daily" ? dailyReports : weeklyReports;
@@ -74,12 +76,202 @@ export const Reports = () => {
   const stats = getTotalStats();
 
   const exportReport = (format: 'pdf' | 'csv' | 'excel') => {
-    // Mock export functionality
     const data = getCurrentData();
-    console.log(`Exporting ${reportType} report as ${format}:`, data);
+    const stats = getTotalStats();
+    const currentDate = new Date().toLocaleDateString();
     
-    // In a real app, this would generate and download the file
-    alert(`Report exported as ${format.toUpperCase()}! (Mock functionality)`);
+    try {
+      switch (format) {
+        case 'csv':
+          exportToCSV(data, stats, currentDate);
+          break;
+        case 'excel':
+          exportToExcel(data, stats, currentDate);
+          break;
+        case 'pdf':
+          exportToPDF(data, stats, currentDate);
+          break;
+        default:
+          throw new Error('Unsupported format');
+      }
+      
+      toast({
+        title: "Export Successful",
+        description: `${reportType} report exported as ${format.toUpperCase()}`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: `Failed to export ${format.toUpperCase()} report. Please try again.`,
+      });
+    }
+  };
+
+  const exportToCSV = (data: ReportData[], stats: any, date: string) => {
+    const headers = ['Date', 'Water Used (L)', 'Runtime (min)', 'Pump Cycles', 'Avg Soil Moisture (%)', 'Alerts', 'Efficiency (%)'];
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => [
+        row.date,
+        row.totalWaterUsed.toFixed(2),
+        row.irrigationTime.toFixed(1),
+        row.pumpCycles,
+        row.avgSoilMoisture.toFixed(1),
+        row.alerts,
+        row.efficiency.toFixed(1)
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `AgroSmart_${reportType}_Report_${date.replace(/\//g, '-')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportToExcel = (data: ReportData[], stats: any, date: string) => {
+    // Create Excel-like CSV with proper formatting
+    const headers = ['Date', 'Water Used (L)', 'Runtime (min)', 'Pump Cycles', 'Avg Soil Moisture (%)', 'Alerts', 'Efficiency (%)'];
+    const csvContent = [
+      'AgroSmart Irrigation Report',
+      `Generated: ${date}`,
+      `Report Type: ${reportType === 'daily' ? 'Daily' : 'Weekly'} Report`,
+      `Total Water: ${stats.totalWater.toFixed(1)}L`,
+      `Total Runtime: ${Math.floor(stats.totalTime / 60)}h ${Math.floor(stats.totalTime % 60)}m`,
+      `Total Cycles: ${stats.totalCycles}`,
+      `Average Efficiency: ${stats.avgEfficiency.toFixed(1)}%`,
+      `Total Alerts: ${stats.totalAlerts}`,
+      '',
+      headers.join(','),
+      ...data.map(row => [
+        row.date,
+        row.totalWaterUsed.toFixed(2),
+        row.irrigationTime.toFixed(1),
+        row.pumpCycles,
+        row.avgSoilMoisture.toFixed(1),
+        row.alerts,
+        row.efficiency.toFixed(1)
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `AgroSmart_${reportType}_Report_${date.replace(/\//g, '-')}.xlsx`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportToPDF = (data: ReportData[], stats: any, date: string) => {
+    // Create a simple PDF-like HTML content
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>AgroSmart Irrigation Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .title { font-size: 24px; font-weight: bold; color: #2d5a27; }
+          .subtitle { font-size: 16px; color: #666; margin-top: 10px; }
+          .summary { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+          .summary h3 { margin-top: 0; color: #2d5a27; }
+          .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+          .summary-item { text-align: center; }
+          .summary-value { font-size: 20px; font-weight: bold; color: #2d5a27; }
+          .summary-label { font-size: 12px; color: #666; margin-top: 5px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #2d5a27; color: white; }
+          tr:nth-child(even) { background-color: #f9f9f9; }
+          .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="title">AgroSmart Irrigation Report</div>
+          <div class="subtitle">Generated on ${date}</div>
+          <div class="subtitle">${reportType === 'daily' ? 'Daily' : 'Weekly'} Report</div>
+        </div>
+        
+        <div class="summary">
+          <h3>Summary Statistics</h3>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-value">${stats.totalWater.toFixed(1)}L</div>
+              <div class="summary-label">Total Water Used</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${Math.floor(stats.totalTime / 60)}h ${Math.floor(stats.totalTime % 60)}m</div>
+              <div class="summary-label">Total Runtime</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${stats.totalCycles}</div>
+              <div class="summary-label">Pump Cycles</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${stats.avgEfficiency.toFixed(1)}%</div>
+              <div class="summary-label">Avg Efficiency</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${stats.totalAlerts}</div>
+              <div class="summary-label">Total Alerts</div>
+            </div>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Water Used (L)</th>
+              <th>Runtime (min)</th>
+              <th>Pump Cycles</th>
+              <th>Avg Soil Moisture (%)</th>
+              <th>Alerts</th>
+              <th>Efficiency (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(row => `
+              <tr>
+                <td>${row.date}</td>
+                <td>${row.totalWaterUsed.toFixed(2)}</td>
+                <td>${row.irrigationTime.toFixed(1)}</td>
+                <td>${row.pumpCycles}</td>
+                <td>${row.avgSoilMoisture.toFixed(1)}</td>
+                <td>${row.alerts}</td>
+                <td>${row.efficiency.toFixed(1)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>Generated by AgroSmart Smart Irrigation Management System</p>
+          <p>For more information, visit the AgroSmart dashboard</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `AgroSmart_${reportType}_Report_${date.replace(/\//g, '-')}.html`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
