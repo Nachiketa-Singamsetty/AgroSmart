@@ -11,7 +11,8 @@ export default defineConfig({
   preview: {
     host: "::",
     port: 8080,
-    allowedHosts: "all",
+    allowedHosts: true, // allow all
+    // OR allowedHosts: ["agrosmart-l0jo.onrender.com"]
   },
   plugins: [react()],
   resolve: {
